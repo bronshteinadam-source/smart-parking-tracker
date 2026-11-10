@@ -1,0 +1,51 @@
+# Smart Parking Tracker - Track 1 (Lite)
+#
+#   docker compose up --build        start everything, then open http://localhost:8080
+#   docker compose down              stop and remove containers (the Volume survives!)
+#   docker compose down -v           ...and also delete the Volume (fresh start)
+
+name: smart-parking          # fixed project name, so the Volume is always called smart-parking_plates-data
+
+services:
+
+  # ---------- Web server: Nginx serves the dashboard ----------
+  web:
+    build: ./web
+    image: smart-parking-web
+    container_name: parking-web
+    ports:
+      - "8080:80"            # the ONLY port opened to the outside: http://localhost:8080
+    depends_on:
+      storage:
+        condition: service_healthy   # start Nginx only after Apache answers (Nginx resolves "storage" on startup)
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - parking-net
+    restart: unless-stopped
+
+  # ---------- Storage server: Apache keeps and serves the camera photos ----------
+  storage:
+    build: ./storage
+    image: smart-parking-storage
+    container_name: parking-storage
+    # No "ports:" on purpose. Only Nginx (same network) can reach Apache.
+    volumes:
+      - plates-data:/usr/local/apache2/htdocs/plates   # named Volume: photos survive down/up
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/plates/"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    networks:
+      - parking-net
+    restart: unless-stopped
+
+volumes:
+  plates-data:               # managed by Docker, lives outside the container
+
+networks:
+  parking-net:               # private network where "web" can reach "storage" by name

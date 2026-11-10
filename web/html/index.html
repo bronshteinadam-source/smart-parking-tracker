@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retro Rides Parking - Attendant Dashboard</title>
+  <!-- inline favicon (an emoji in an SVG) so the browser does not ask the server for /favicon.ico -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9A%97%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== Top bar ===== -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-car" viewBox="0 0 120 56" aria-hidden="true">
+        <path d="M8 38c0-6 4-9 10-10l14-14c3-3 6-4 10-4h26c5 0 8 1 11 4l12 12c8 1 14 3 14 9v6c0 2-1 3-3 3H11c-2 0-3-1-3-3z" fill="currentColor"/>
+        <path d="M38 16h24v12H30zM66 16h8c2 0 3 1 5 3l7 9H66z" fill="var(--paper)"/>
+        <circle cx="32" cy="42" r="9" fill="var(--ink)"/><circle cx="32" cy="42" r="4" fill="var(--chrome)"/>
+        <circle cx="92" cy="42" r="9" fill="var(--ink)"/><circle cx="92" cy="42" r="4" fill="var(--chrome)"/>
+      </svg>
+      <div>
+        <h1 id="logo">Retro Rides</h1>
+        <p class="tagline">Smart Parking &middot; Classic Cars Only</p>
+      </div>
+    </div>
+
+    <div class="controls">
+      <span id="status" class="pill pill-wait" title="Connection to the Apache storage server">Connecting&hellip;</span>
+      <span id="clock" class="clock" aria-label="Current time">--:--</span>
+      <button id="soundBtn" class="btn-ghost" type="button" aria-pressed="false" title="Honk when a car arrives">Sound: off</button>
+      <button id="themeBtn" class="btn-ghost" type="button" title="Toggle Dark Mode">Dark mode</button>
+    </div>
+  </header>
+
+  <!-- ===== Full capacity alert (hidden until the lot is full) ===== -->
+  <div id="fullAlert" class="alert" role="alert" hidden>
+    <strong>LOT FULL!</strong> <span id="fullAlertText">No free spots. Politely send new cars away.</span>
+  </div>
+
+  <main>
+    <!-- ===== Numbers ===== -->
+    <section class="stats" aria-label="Lot statistics">
+      <div class="stat"><span class="stat-label">Cars inside</span><span class="stat-value" id="statInside">0</span><span class="stat-sub" id="statCap">of 6 spots</span></div>
+      <div class="stat"><span class="stat-label">Free spots</span><span class="stat-value" id="statFree">6</span><span class="stat-sub">ready for a classic</span></div>
+      <div class="stat"><span class="stat-label">Meter running</span><span class="stat-value" id="statMoney">&#8362;0</span><span class="stat-sub" id="statPrice">&#8362;12 / started hour</span></div>
+      <div class="stat"><span class="stat-label">Released</span><span class="stat-value" id="statReleased">0</span><span class="stat-sub">cars that drove away</span></div>
+    </section>
+
+    <!-- Row of parking spots: filled = occupied -->
+    <div id="slots" class="slots" aria-hidden="true"></div>
+
+    <!-- ===== The cars ===== -->
+    <section id="lot" class="lot" aria-label="Cars in the lot"></section>
+    <p id="empty" class="empty" hidden>The lot is empty. Waiting for the camera to spot a car&hellip;</p>
+  </main>
+
+  <footer>
+    <p>Photos come from the IoT camera &rarr; Apache storage server &rarr; this page (Nginx).
+       Price: <span id="footPrice"></span>. Cheat codes are not just for video games&hellip;</p>
+  </footer>
+
+  <!-- Pop-up messages when a car arrives -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <noscript><p class="empty">This dashboard needs JavaScript to show the live list of cars.</p></noscript>
+
+  <script src="app.js"></script>
+</body>
+</html>
