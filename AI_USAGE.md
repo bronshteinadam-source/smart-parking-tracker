@@ -10,7 +10,13 @@ We used an AI assistant (Claude, Anthropic) to help build this project. This fil
 | 2 | Answered the questions: *"What's easier"* for the track | AI first picked Track 1 by itself (see mistake A) |
 | 3 | *"Wait, you didn't ask me those questions. It's not true, no preferences. ... Ask me again, but explain more so I can actually understand what I'm choosing."* | Asked again with clear explanations. We chose **Track 1 - Lite**, theme **Classic cars lot**, language **English** |
 | 4 | (Build phase, AI worked on its own from our choices) Build the Track 1 system: Nginx dashboard + Apache storage, Docker Compose, Volume, GitHub Actions with the GHCR bonus, README, docs | `docker-compose.yml`, both Dockerfiles, `nginx.conf`, `plates.conf`, `entrypoint.sh`, dashboard (HTML/CSS/JS), camera scripts, workflow, documentation |
-| 5 | *(add the prompts you sent after this point: questions about the code, changes you asked for, etc.)* | |
+| 5 | *"Do what you can on your own. Take as much time as you need. to complete it"* | The AI built and tested the whole system on its own (see row 4) |
+| 6 | *"Round up everything you can, make everything make sense, and maybe write something short in Hebrew to make my crewmates understand our work."* | `docs/TEAM_SUMMARY_HE.md`, `docs/TEAM_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`, `docs/CODE_REVIEW_PREP.md`, the presentation |
+| 7 | *"Round up things like all the code... It should make sense, and it should actually be good. Compare it to other stuff... make the project better however you can."* | The AI compared the project with current best practice and improved it (see mistakes D and E) |
+| 8 | *"tell me what to do simply and easy. reduce my work as much as you can"* | A short step-by-step list for running and publishing the project |
+| 9 | Pasted a screenshot of Docker Desktop stuck on "Starting the Docker Engine..." and later "Engine running" | Troubleshooting steps for Docker Desktop on our Windows ARM laptop |
+| 10 | *"do it urself"* | The AI tried to run the project on our laptop through the desktop app, but could not get access to a folder, so it gave us the exact commands instead (see mistake G) |
+| 11 | Pasted the PowerShell errors we got (scripts blocked, `git` not found) | The AI gave the fixes (see mistake G) |
 
 ## 2. Mistakes and inaccuracies the AI made, and how they were fixed
 
@@ -40,14 +46,23 @@ After we asked it to make the project better, the AI compared its work with curr
 - **A bug in its own smoke-test script.** The first version of `scripts/smoke-test.sh` returned the same photo name twice, because the file name appears twice in each row of Apache's listing (link and text), and `grep -m1` limits lines, not matches. The script failed when it was run for the first time. **Fix:** it now keeps only the first match with `sed -n 1p`. We also checked that the script really fails when the system is down.
 - **Missing basics that real projects have.** No read-only protection on the public photo path, no security headers, no Dockerfile linting, an over-permissive default workflow token and no ARM images. **Fix:** all added (see `ARCHITECTURE.md`, sections 10 and 12).
 
+### G. Windows problems the AI did not foresee when we ran it
+The AI wrote and tested everything on Linux, so its instructions failed on our Windows laptop in two ways.
+
+**camera.ps1 was blocked by PowerShell.** Windows refuses to run downloaded, unsigned scripts (error: is not digitally signed). Fix: run `Set-ExecutionPolicy -Scope Process Bypass` in the same window first. This only affects that window. The README now says so.
+
+**git was not installed**, and after installing it with winget the already-open PowerShell window still did not find it, because that window had an old PATH. The AI first told us to open a new terminal, but the window we were using was still the old one. Fix: refresh PATH in the same window, or open a new window.
+
+Lesson: instructions written for one operating system need to be tried on the real one.
+
 ### F. Things the AI could not check, and how we dealt with them
-- In the AI's workspace, pulling images from Docker Hub was blocked by network policy, so the AI **could not run the real containers**. It tested the dashboard in a real browser against a mock that imitates Apache's directory listing and Nginx's routing, validated `docker-compose.yml` with `docker compose config`, and linted the workflow with `actionlint`. The real stack was verified by us with `docker compose up --build` and by the CI smoke test (_add the date you ran it_).
+- In the AI's workspace, pulling images from Docker Hub was blocked by network policy, so the AI **could not run the real containers**. It tested the dashboard in a real browser against a mock that imitates Apache's directory listing and Nginx's routing, validated `docker-compose.yml` with `docker compose config`, and linted the workflow with `actionlint`. The real stack was verified by us with `docker compose up --build` and by the CI smoke test on 2026-11-10 (both containers healthy, GitHub Actions run green on main, including publishing to GHCR).
 - The AI was not sure that the BusyBox `date -d "@<epoch>"` command (used in Alpine) behaves like the normal `date`. It added a fallback form in `storage/entrypoint.sh` instead of assuming.
 - The AI assumed Windows line endings could break the shell script inside the Linux container, and added `.gitattributes` to force LF. We keep this on purpose.
 
 ## 3. What we changed or checked ourselves
 
-- Ran `docker compose up --build` and `./scripts/smoke-test.sh`, opened the dashboard, sent cars with `scripts/camera.sh`, and did `docker compose down` / `up` to confirm the Volume keeps the cars.
+- Ran `docker compose up --build` and `./scripts/smoke-test.sh`, opened the dashboard, sent cars with `scripts/camera.ps1` (Windows), and did `docker compose down` / `up` to confirm the Volume keeps the cars.
 - Read through the Dockerfiles, `docker-compose.yml`, `nginx.conf` and the workflow so we can answer Code Review questions (see `ARCHITECTURE.md` for the reasons behind each choice).
 
 ## 4. Our rule for using AI
