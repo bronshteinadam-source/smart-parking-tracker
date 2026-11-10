@@ -65,6 +65,7 @@ Lesson: instructions written for one operating system need to be tried on the re
 - Ran `docker compose up --build` on a Windows ARM laptop, opened the dashboard, sent cars with `scripts/camera.ps1`, and did `docker compose down` / `up` to confirm the Volume keeps the cars.
 - Created the GitHub repository and pushed the project. GitHub Actions runs `scripts/smoke-test.sh` on every push and publishes the images to GHCR.
 - Each team member writes notes in their own words on the part they present in the Code Review (`docs/notes-*.md`). `ARCHITECTURE.md` explains the reasons behind each choice.
+- Gal (part C): went through `storage/entrypoint.sh` and `scripts/camera.ps1` and wrote `docs/notes-C.md` with help from the AI (Claude).
 
 ## 4. Our rule for using AI
 
