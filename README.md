@@ -67,6 +67,12 @@ In a second terminal, pretend to be the camera:
 .\scripts\camera.ps1 -List
 ```
 
+If PowerShell says the script is not digitally signed, allow scripts for this window only and run it again:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+```
+
 The new car appears on the dashboard within about 3 seconds, with a pop-up and a funny message. No page refresh needed.
 
 ### Prove the Volume works (the live demo)
