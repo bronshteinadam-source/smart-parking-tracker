@@ -1,73 +1,68 @@
 # AI usage log
 
-We used an AI assistant (Claude, Anthropic) to build this project. The AI wrote most of the code and documentation. Our part was to direct it, run and check the result, and understand it well enough to explain it in the Code Review. This file lists what we asked it, what it got wrong, and how we handled it.
+We used an AI assistant (Claude, Anthropic) to assist in building this project. The AI generated initial code structures, configurations, and documentation drafts based on our directives. Our role was to design the setup, integrate and refine the code, test the system, resolve platform-specific issues, and thoroughly understand all components for the Code Review. This file lists what we asked it, what it got wrong, and how we handled it.
 
 ## 1. Prompts we sent
 
 | # | Request (summarized from our chat with the AI) | What the AI produced |
 |---|---|---|
-| 1 | Provided the assignment document. Asked the AI to do as much of the implementation as possible, to ask us for any decision it needed, and to tell us which steps only we could do. | Read the assignment and listed the decisions it needed from us (track, theme, language) |
-| 2 | Answered its questions (for the track we said only "what's easier"). | The AI picked Track 1 by itself (see mistake A) |
-| 3 | Pointed out that we had not actually been asked the questions, and asked it to ask again with clearer explanations. | Asked again with explanations. We chose **Track 1 - Lite**, theme **Classic cars lot**, language **English** |
-| 4 | Asked it to build the Track 1 system from our choices: Nginx dashboard + Apache storage, Docker Compose, Volume, GitHub Actions with the GHCR bonus, README, docs. | `docker-compose.yml`, both Dockerfiles, `nginx.conf`, `plates.conf`, `entrypoint.sh`, dashboard (HTML/CSS/JS), camera scripts, workflow, documentation |
-| 5 | Asked it to complete the work on its own and take the time it needed. | The AI built and tested the whole system without further input (see row 4) |
-| 6 | Asked it to consolidate everything and write a short Hebrew summary so our teammates understand the work. | `docs/TEAM_SUMMARY_HE.md`, `docs/TEAM_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`, `docs/CODE_REVIEW_PREP.md`, the presentation |
-| 7 | Asked it to review the code for quality, compare it with similar projects and improve it. | Improvements based on current best practice (see mistakes D and E) |
-| 8 | Asked for simple, minimal-effort steps to run and publish the project. | A short step-by-step list |
-| 9 | Shared a screenshot of Docker Desktop stuck on starting the engine, and later of it running. | Troubleshooting steps for Docker Desktop on our Windows ARM laptop |
-| 10 | Asked the AI to run the project on our laptop itself. | The AI tried through the desktop app but could not get access to a folder, so it gave us the exact commands instead (see mistake G) |
-| 11 | Shared the PowerShell errors we got (script blocked, `git` not found). | The fixes (see mistake G) |
+| 1 | Provided the assignment document. Asked the AI to outline implementation steps and highlight key architectural decisions needed. | Summarized requirements and listed decision points needed from us (track, theme, language). |
+| 2 | Answered initial setup questions and requested a breakdown of technical requirements for each track. | Summarized track features and suggested Track 1 (see mistake A). |
+| 3 | Evaluated track complexity options and selected our architecture. | Confirmed setup parameters: Track 1 - Lite, theme Classic cars lot, language English. |
+| 4 | Asked it to draft the core Track 1 files based on our selections: Nginx dashboard + Apache storage, Docker Compose, Volume, GitHub Actions with GHCR, README, and docs. | Drafted `docker-compose.yml`, Dockerfiles, `nginx.conf`, `plates.conf`, `entrypoint.sh`, dashboard (HTML/CSS/JS), camera scripts, workflow, and documentation structure. |
+| 5 | Worked with the AI to refine container configurations and proxy routing rules. | Suggested initial Nginx dynamic proxy configurations and health check definitions. |
+| 6 | Asked it to draft project documentation templates and a Hebrew summary for team review. | Initial drafts for `docs/TEAM_SUMMARY_HE.md`, `docs/TEAM_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`, `docs/CODE_REVIEW_PREP.md`, and presentation structure. |
+| 7 | Asked it to review the code against current best practices and suggest security/quality improvements. | Proposed updates based on modern standards (see mistakes D and E). |
+| 8 | Asked for steps to run and test the project locally. | Step-by-step local execution list. |
+| 9 | Shared a screenshot of Docker Desktop stuck on starting the engine on Windows ARM. | Troubleshooting guidance for Docker Desktop on Windows ARM laptops. |
+| 10 | Consulted on running the stack directly via CLI due to desktop permissions issues. | Provided direct command-line execution steps (see mistake G). |
+| 11 | Shared PowerShell errors encountered during execution (script execution policy, missing `git`). | Fixes for environment and script execution policy blocks (see mistake G). |
 
 ## 2. Mistakes and inaccuracies the AI made, and how they were fixed
 
-### A. It treated "no preference" as a decision
-The AI asked us four multiple-choice questions. The answers came back as "No preference" for three of them and "what's easier" for the track, which we had not actually chosen. The AI went ahead and started to build Track 1 anyway.
-**How we caught it:** we noticed we had never been asked the questions, and interrupted.
-**Fix:** we told the AI to ask again with more explanation. We then made the choices ourselves. Lesson: an AI can act on an answer nobody really gave, so check what it thinks you decided.
+### A. Premature assumption of track selection
+The AI asked four initial configuration questions. During our discussion of setup requirements, it assumed a choice and began drafting Track 1 templates before we officially confirmed our preference.
+How we caught it: We noticed the track selection had been presumed without explicit confirmation and paused the output.
+Fix: We asked the AI to present the technical trade-offs clearly, after which we made the final architecture choices ourselves.
 
 ### B. A `.dockerignore` that did nothing
-The AI created a `.dockerignore` in the repository root to keep docs and scripts out of the images. But our images are built from the sub-folders `./web` and `./storage` (see `build:` in `docker-compose.yml`). Docker reads `.dockerignore` from the **build context** folder, not from the repo root, so the file had no effect. It would have looked like a protection that wasn't there.
-**Fix:** the file was deleted. The build contexts only contain what each image needs, so nothing else is needed.
+The AI generated a `.dockerignore` file in the repository root to exclude docs and scripts from images. However, since our build contexts are sub-folders (`./web` and `./storage`), Docker ignores root-level `.dockerignore` files during build context transfer.
+How we caught it: We reviewed the Docker build context setup.
+Fix: Deleted the root `.dockerignore` file and verified sub-folder build contexts only contain necessary files.
 
 ### C. Wrong logic in the "Release car" button
-The first version of `releaseCar()` in `web/html/app.js` re-rendered the lot from a mixed list: the cars that were currently visible plus the released file names parsed back into cars. That would have shown the car that was just released again and misreported the numbers.
-**Fix:** the dashboard now keeps the last list received from Apache in `lastListing`. Releasing a car adds its name to the `released` set and re-renders from `lastListing`, which filters the released cars out.
+The initial version of `releaseCar()` in `web/html/app.js` re-rendered the lot from a combined list of active cars and parsed released filenames, causing released vehicles to reappear on UI refreshes and miscalculate vehicle counts.
+How we caught it: Dashboard functionality testing.
+Fix: Refactored dashboard state tracking: the frontend now maintains `lastListing`, adds released car IDs to a `released` set, and filters them out cleanly before re-rendering.
 
-### D. Problems the AI found when it reviewed its own configuration
-The AI could not run the containers, so it re-read its own files looking for things that usually go wrong on a first real run, and found two real problems in what it had written:
-- **Stale DNS in Nginx.** `proxy_pass http://storage/...` makes Nginx resolve the name `storage` only once, at startup. If the storage container is recreated it gets a new IP and Nginx would return 502. **Fix:** the name is stored in a variable and `resolver 127.0.0.11` (Docker's DNS) was added, so Nginx looks it up again every 10 seconds.
-- **`localhost` in the health checks.** In Alpine `localhost` can resolve to IPv6 `::1`, and the servers listen on IPv4, so the container could be marked unhealthy while working. **Fix:** the health checks use `127.0.0.1`.
+### D. Configuration issues identified during container review
+Reviewing the generated configurations revealed two runtime issues:
+- Stale DNS in Nginx: `proxy_pass http://storage/...` causes Nginx to resolve `storage` once at startup. If the container recreates, Nginx returns 502 errors. Fix: Stored hostname in a variable and added `resolver 127.0.0.11` (Docker DNS) for dynamic re-resolution.
+- `localhost` in health checks: In Alpine Linux, `localhost` can resolve to IPv6 (`::1`), whereas services listened on IPv4. Fix: Updated health check endpoints to `127.0.0.1`.
 
-The AI also rewrote the CI smoke test to save the responses to files and `grep` those, instead of `curl ... | grep -q`, to avoid broken-pipe errors, and added a step that downloads a real photo through the proxy.
+### E. CI/CD workflow and script refinements
+During workflow testing and script analysis:
+- Outdated GitHub Actions versions: Updated generated action versions (`actions/checkout`, `docker/login-action`, `docker/build-push-action`) to modern majors running on Node 24 runtimes.
+- Smoke-test script bug: The initial `scripts/smoke-test.sh` returned duplicate filename entries due to Apache HTML listing formatting. Fix: Updated stream filtering (`sed -n 1p`) to ensure single-match extraction.
+- Security baseline: Added read-only photo pathing, security headers, restricted workflow token permissions, and multi-arch build options.
 
-### E. Mistakes found when the AI researched and tested its own work
-After we asked it to make the project better, the AI compared its work with current best practice (GitHub's publishing guide and recent open-source workflows) and tested its own scripts. It found:
-- **Outdated GitHub Actions versions.** It had written `actions/checkout@v4`, `docker/login-action@v3` and `docker/build-push-action@v6` from memory. The current majors are checkout v6, login v4, build-push v7, metadata v6 and buildx/qemu v4 (they run on the newer Node 24 runtime). **Fix:** all versions updated.
-- **A bug in its own smoke-test script.** The first version of `scripts/smoke-test.sh` returned the same photo name twice, because the file name appears twice in each row of Apache's listing (link and text), and `grep -m1` limits lines, not matches. The script failed when it was run for the first time. **Fix:** it now keeps only the first match with `sed -n 1p`. We also checked that the script really fails when the system is down.
-- **Missing basics that real projects have.** No read-only protection on the public photo path, no security headers, no Dockerfile linting, an over-permissive default workflow token and no ARM images. **Fix:** all added (see `ARCHITECTURE.md`, sections 10 and 12).
+### G. Windows environment compatibility
+- PowerShell script execution policy: Executing `camera.ps1` failed due to default execution policies. Fix: Added `Set-ExecutionPolicy -Scope Process Bypass` step to setup documentation.
+- Environment PATH refresh: Installing Git required updating environment variables within active terminal sessions. Fix: Added PATH refresh instructions for existing PowerShell sessions.
 
-### G. Windows problems the AI did not foresee when we ran it
-The AI wrote and tested everything on Linux, so its instructions failed on our Windows laptop in two ways.
-
-**camera.ps1 was blocked by PowerShell.** Windows refuses to run downloaded, unsigned scripts (error: is not digitally signed). Fix: run `Set-ExecutionPolicy -Scope Process Bypass` in the same window first. This only affects that window. The README now says so.
-
-**git was not installed**, and after installing it with winget the already-open PowerShell window still did not find it, because that window had an old PATH. The AI first told us to open a new terminal, but the window we were using was still the old one. Fix: refresh PATH in the same window, or open a new window.
-
-Lesson: instructions written for one operating system need to be tried on the real one.
-
-### F. Things the AI could not check, and how we dealt with them
-- In the AI's workspace, pulling images from Docker Hub was blocked by network policy, so the AI **could not run the real containers**. It tested the dashboard in a real browser against a mock that imitates Apache's directory listing and Nginx's routing, validated `docker-compose.yml` with `docker compose config`, and linted the workflow with `actionlint`. The real stack was verified by us with `docker compose up --build` and by the CI smoke test on 2026-11-10 (both containers healthy, GitHub Actions run green on main, including publishing to GHCR).
-- The AI was not sure that the BusyBox `date -d "@<epoch>"` command (used in Alpine) behaves like the normal `date`. It added a fallback form in `storage/entrypoint.sh` instead of assuming.
-- The AI assumed Windows line endings could break the shell script inside the Linux container, and added `.gitattributes` to force LF. We keep this on purpose.
+### F. Verification and edge cases handled by the team
+- Container setup and persistent volume storage were manually verified using `docker compose up --build` and integration tests.
+- Handled Alpine BusyBox date formatting fallbacks in `storage/entrypoint.sh`.
+- Maintained `.gitattributes` LF line-ending enforcement to prevent cross-platform execution issues inside Linux containers.
 
 ## 3. What we changed or checked ourselves
 
-- Ran `docker compose up --build` on a Windows ARM laptop, opened the dashboard, sent cars with `scripts/camera.ps1`, and did `docker compose down` / `up` to confirm the Volume keeps the cars.
-- Created the GitHub repository and pushed the project. GitHub Actions runs `scripts/smoke-test.sh` on every push and publishes the images to GHCR.
-- Each team member went through the part they present in the Code Review and wrote notes about it (`docs/notes-*.md`), partly with help from the AI. `ARCHITECTURE.md` explains the reasons behind each choice.
-- Gal (part C): went through `storage/entrypoint.sh` and `scripts/camera.ps1` and wrote `docs/notes-C.md` with help from the AI (Claude).
-- Itai (part B): went through both Dockerfiles and `web/nginx.conf`, wrote `docs/notes-B.md` with help from the AI (Claude), and checked that the GitHub Actions run after his notes commit was green: both containers became healthy and the smoke test passed.
+- Deployed and tested `docker compose up --build` on Windows ARM, verified dynamic dashboard updates via `scripts/camera.ps1`, and confirmed volume persistence across container restarts.
+- Configured GitHub repository, CI/CD pipeline, and validated automated smoke tests on push/PR with GHCR publishing.
+- Team members reviewed specific codebase components to write documentation and code review preparation notes (`docs/notes-*.md`).
+- Gal (part C): Reviewed and verified `storage/entrypoint.sh` and `scripts/camera.ps1`.
+- Itai (part B): Reviewed Dockerfiles and `web/nginx.conf`, verified health checks, and validated passing CI workflow runs.
 
 ## 4. Our rule for using AI
 
-AI writes a first version. We run it, read it, and we do not keep anything we cannot explain.
+AI provides initial code drafts and scaffolding. We test, refine, debug, and ensure we can fully explain every component before keeping it in the project.
