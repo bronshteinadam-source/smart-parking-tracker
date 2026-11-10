@@ -40,7 +40,20 @@ plate="SMOKE-$RANDOM"
 [ "$(post_plate "$plate")" = "201" ] || fail "POST /api/cars should return 201 for $plate"
 curl -fsS "$BASE/api/cars" | grep -q "$plate" || fail "$plate is not in GET /api/cars after the POST"
 [ "$(post_plate "$plate")" = "409" ] || fail "posting $plate twice should return 409"
-pass "POST /api/cars adds a car (201), shows up in GET, duplicate is refused (409)"
+
+# The lot has 6 spots: keep adding cars until the API says no, then check that it stopped at 6.
+added=()
+code=""
+for i in $(seq 1 20); do
+  code="$(post_plate "FULL-$i")"
+  if [ "$code" = "201" ]; then added+=("FULL-$i"); else break; fi
+done
+curl -fsS "$BASE/api/cars" -o "$TMP/full.json"
+parked="$(grep -o '"parked":[0-9]*' "$TMP/full.json" | cut -d: -f2)"
+for p in ${added[@]+"${added[@]}"}; do curl -fsS -X DELETE "$BASE/api/cars/$p" >/dev/null || true; done
+[ "$code" = "409" ] || fail "a car beyond the 6 spots should be refused with 409, got HTTP $code"
+[ "$parked" = "6" ] || fail "the lot should stop at 6 cars, it holds $parked"
+pass "POST /api/cars adds a car (201), shows up in GET, duplicate and 7th car are refused (409)"
 
 # 5. Bad input is refused, unknown cars are 404
 [ "$(post_plate '<script>')" = "400" ] || fail "an invalid plate should return 400"
