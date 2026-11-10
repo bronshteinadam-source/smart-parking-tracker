@@ -119,7 +119,7 @@ docker compose down -v                    # -v deletes the Volume too: the lot i
 | Retro theme | 1950s diner look, chrome bumper photos, vintage plates |
 | Funny arrival message | Every car that arrives gets a pop-up joke (the same car always gets the same joke) |
 | Hourly price | 12 NIS per started hour, first 10 minutes free. The price updates live every second |
-| Full Capacity Alert | The lot has 6 spots. When it is full a flashing red banner appears; over capacity it counts the extra cars |
+| Full Capacity Alert | The lot has 6 spots. When it is full a flashing red banner appears, and the API refuses any further car (`409`) until someone is released |
 | Release car button | Sends `DELETE` to the API: the car is removed from Redis and the spot is free |
 | Dark Mode | Diner by day, drive-in by night. Remembered in the browser |
 | Honk | Optional "beep beep" sound when a car arrives (button in the top bar) |
@@ -208,7 +208,7 @@ docker compose up -d --build            # rebuild after changing code
 ## Known limitations
 
 - The lot is not password protected (it is a class project).
-- The 6 parking spots (capacity) are a constant in the code; the lot does not refuse a 7th car, it shows "over capacity".
+- The 6 parking spots (capacity) are a constant in the code. The API refuses a 7th car with `409` ("lot is full"); the check and the insert are one atomic Redis (Lua) step, so two cameras at the same moment cannot squeeze in an extra car.
 - Car photos exist only for the sample cars. For any other plate the dashboard draws a plate picture itself.
 
 ## For the team

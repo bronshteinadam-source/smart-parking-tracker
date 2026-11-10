@@ -42,7 +42,7 @@ try {
     Write-Host "Camera: spotted $Plate -> sent to the API (201 Created)"
 } catch {
     $code = $_.Exception.Response.StatusCode.value__
-    if ($code -eq 409) { Write-Error "Camera: $Plate is already in the lot (409)" }
+    if ($code -eq 409) { Write-Error "Camera: $Plate was refused (409): already in the lot, or the lot is full. Release a car first." }
     elseif ($code -eq 400) { Write-Error "Camera: the API rejected the plate '$Plate' (400)" }
     else { Write-Error "Camera: cannot reach the API at $Base. Is the stack running?" }
 }
