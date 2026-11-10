@@ -17,8 +17,13 @@ We used an AI assistant (Claude, Anthropic) to assist in building this project. 
 | 9 | Shared a screenshot of Docker Desktop stuck on starting the engine on Windows ARM. | Troubleshooting guidance for Docker Desktop on Windows ARM laptops. |
 | 10 | Consulted on running the stack directly via CLI due to desktop permissions issues. | Provided direct command-line execution steps (see mistake G). |
 | 11 | Shared PowerShell errors encountered during execution (script execution policy, missing `git`). | Fixes for environment and script execution policy blocks (see mistake G). |
+| 12 | Asked for explanations of the whole project (the teacher will ask each of us questions) and for diagrams, slides and per-person reading texts. | Hebrew explanations, a project map, a presentation and reading texts. |
+| 13 | Asked: "are you sure we don't need Track 2?" and told it our class is Yud (not Yud-Gimel). | The AI re-read the assignment, agreed Track 2 fits our class (see mistake H) and offered to convert. |
+| 14 | Asked it to convert the project to Track 2 with as few changes as possible. | New `api/` (Flask), Redis service with a Volume, new `docker-compose.yml`, `nginx.conf` proxy to the API, `app.js` using `fetch`, camera scripts using HTTP POST, `persistence-test.sh`, updated CI and documentation. |
 
 ## 2. Mistakes and inaccuracies the AI made, and how they were fixed
+
+Mistakes A-G were found in version 1 (Track 1: Nginx + Apache). Their lessons still apply to version 2; the Apache-specific code no longer exists. H and I are about the move to Track 2.
 
 ### A. Premature assumption of track selection
 The AI asked four initial configuration questions. During our discussion of setup requirements, it assumed a choice and began drafting Track 1 templates before we officially confirmed our preference.
@@ -55,13 +60,25 @@ During workflow testing and script analysis:
 - Handled Alpine BusyBox date formatting fallbacks in `storage/entrypoint.sh`.
 - Maintained `.gitattributes` LF line-ending enforcement to prevent cross-platform execution issues inside Linux containers.
 
+### H. Wrong track for our class
+The AI recommended Track 1 - Lite at the start. The assignment says Track 1 is meant for the Yud-Gimel classes, and our class is Yud, so Track 2 was the right one.
+How we caught it: we asked "are you sure we don't need Track 2?" and told the AI our class.
+Fix: the project was converted to Track 2 (version 2): the Apache storage server was replaced by a Flask API plus a Redis database whose data is kept in a Volume. Everything else (Nginx dashboard, Compose structure, CI/CD, GHCR) stayed. The Track 1 notes were moved to `docs/track1-notes/` as history.
+
+### I. Things the AI could not test (Track 2)
+The AI had no Docker engine in its workspace. It tested the API against a real Redis server with `curl`, ran the smoke test against a stand-in for Nginx, and checked the dashboard in a headless browser, but it could not run `docker compose up`, the Dockerfile builds or hadolint. These are the parts we must run ourselves and fix if they fail.
+
 ## 3. What we changed or checked ourselves
+
+Version 1 (Track 1):
 
 - Deployed and tested `docker compose up --build` on Windows ARM, verified dynamic dashboard updates via `scripts/camera.ps1`, and confirmed volume persistence across container restarts.
 - Configured GitHub repository, CI/CD pipeline, and validated automated smoke tests on push/PR with GHCR publishing.
-- Team members reviewed specific codebase components to write documentation and code review preparation notes (`docs/notes-*.md`).
+- Team members reviewed specific codebase components to write documentation and code review preparation notes (`docs/track1-notes/`, written for version 1).
 - Gal (part C): Reviewed and verified `storage/entrypoint.sh` and `scripts/camera.ps1`.
 - Itai (part B): Reviewed Dockerfiles and `web/nginx.conf`, verified health checks, and validated passing CI workflow runs.
+
+Version 2 (Track 2): the team runs `docker compose up --build`, `scripts/smoke-test.sh` and `scripts/persistence-test.sh` on a real Docker engine and checks the CI run before the demo. (Fill in the date and the result here once done.)
 
 ## 4. Our rule for using AI
 

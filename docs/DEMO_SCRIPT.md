@@ -9,27 +9,27 @@ docker compose down -v            # clean start
 docker compose up -d --build      # build + start in the background
 ```
 
-Run `./scripts/smoke-test.sh` (Git Bash): 6 PASS lines means everything is wired correctly. Open http://localhost:8080 and check that 4 cars are on the dashboard. Keep the browser on the dashboard and put the terminal beside it so the class sees both.
+Run `./scripts/smoke-test.sh` (Git Bash): 7 PASS lines means everything is wired correctly. Open http://localhost:8080 and check that 4 cars are on the dashboard. Keep the browser on the dashboard and put the terminal beside it so the class sees both.
 
 ## 1. Introduce the system (1 minute)
 
 Say: "Retro Rides, a smart parking lot for classic cars. A camera photographs every plate, and the attendant sees them live."
 
-Show the architecture diagram from the README (or the slide). Two containers, one Volume, one open port.
+Show the architecture diagram from the README (or the slide). Three containers (Nginx, API, Redis), one Volume, one open port.
 
 ## 2. Show the app and our own touch (2 minutes)
 
 1. Point out the live parking time and price on each card.
 2. In the second terminal: `./scripts/camera.sh` (or `.\scripts\camera.ps1` on Windows). The new car appears with a pop-up and a joke. **Turn Sound on first** so the class hears the honk.
 3. Send two or three more cars until the red **LOT FULL** banner flashes.
-4. Click **Release car** on one: the spot frees up and the banner can disappear.
+4. Click **Release car** on one: the browser sends a DELETE to the API, the spot frees up and the banner can disappear.
 5. Click **Dark mode**.
 6. Type `vroom` on the page: a car drives across the screen. "There's a hidden Easter egg. The other one is the Konami code."
 
 ## 3. The Volume proof (2 minutes) - this is mandatory
 
 ```bash
-docker compose ps                  # two healthy services
+docker compose ps                  # three healthy services
 docker compose down                # containers gone
 docker compose ps                  # empty list - prove it
 docker compose up -d               # new containers
@@ -37,13 +37,20 @@ docker compose up -d               # new containers
 
 Refresh the dashboard: all the cars are still there, and the parked time kept counting.
 
-Say: "The containers were destroyed. The data survived because the photos live in a Volume, which is managed separately from the containers."
+Say: "The containers were destroyed. The data survived because Redis saves its data in a Volume, which is managed separately from the containers."
 
-Optional, if there is time: `docker volume ls` and `docker compose exec storage ls /usr/local/apache2/htdocs/plates`.
+Optional, if there is time: show the data straight from the database:
+
+```bash
+docker compose exec redis redis-cli HGETALL parking:cars
+docker volume ls
+```
+
+And show the API by hand: `curl http://localhost:8080/api/cars`.
 
 ## 4. Show the pipeline (1 minute)
 
-Open the repository on GitHub: Actions tab, a green run with the **build check**, then the **publish** job. Open the Packages section to show the two images with their tags (`latest`, `sha-...`, version).
+Open the repository on GitHub: Actions tab, a green run with the **build check** (it includes the smoke test and the persistence test), then the **publish** job. Open the Packages section to show the two images (`web` and `api`) with their tags (`latest`, `sha-...`, version).
 
 ## 5. Questions
 
@@ -54,7 +61,8 @@ Use [CODE_REVIEW_PREP.md](CODE_REVIEW_PREP.md).
 | Problem | Quick fix |
 |---|---|
 | Port 8080 already used | `docker compose down`, or change `8080:80` to `8081:80` and open :8081 |
-| Dashboard says "Camera storage: OFFLINE" | `docker compose ps`, then `docker compose logs storage` |
-| New car does not show | Wait 3 seconds. Check the file name format with `docker compose exec storage ls /usr/local/apache2/htdocs/plates` |
-| `camera.ps1` is blocked | `powershell -ExecutionPolicy Bypass -File .\scripts\camera.ps1` |
+| Dashboard says "API: OFFLINE" | `docker compose ps`, then `docker compose logs api` and `docker compose logs redis` |
+| New car does not show | Wait 3 seconds. Check the camera output (201?) and `curl http://localhost:8080/api/cars` |
+| Camera says 409 | That car is already in the lot. Pick another or release it |
+| `camera.ps1` is blocked | `Set-ExecutionPolicy -Scope Process Bypass` in the same window, or `powershell -ExecutionPolicy Bypass -File .\scripts\camera.ps1` |
 | Want a full reset | `docker compose down -v && docker compose up -d --build` |

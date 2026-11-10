@@ -34,9 +34,9 @@ jobs:
       - name: Lint the Dockerfiles (hadolint)
         run: |
           docker run --rm -i hadolint/hadolint < web/Dockerfile
-          docker run --rm -i hadolint/hadolint < storage/Dockerfile
+          docker run --rm -i hadolint/hadolint < api/Dockerfile
 
-      - name: Build both images (web + storage)
+      - name: Build the images (web + api)
         run: docker compose build
 
       - name: Start the stack and wait until every service is healthy
@@ -44,6 +44,9 @@ jobs:
 
       - name: Smoke test (same script you can run locally)
         run: bash scripts/smoke-test.sh
+
+      - name: Persistence test (down + up, the data must survive in the Volume)
+        run: bash scripts/persistence-test.sh
 
       - name: Show container logs if something failed
         if: failure()
@@ -68,7 +71,7 @@ jobs:
       packages: write          # lets the built-in GITHUB_TOKEN push to ghcr.io
     strategy:
       matrix:
-        service: [web, storage]
+        service: [web, api]
     steps:
       - name: Check out the code
         uses: actions/checkout@v6

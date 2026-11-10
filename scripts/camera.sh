@@ -1,44 +1,46 @@
 #!/usr/bin/env bash
-# Pretend to be the IoT camera at the gate: a new car arrives and its photo is saved
-# on the Apache storage server (inside the Volume). The dashboard shows it within ~3 seconds.
+# Pretend to be the IoT camera at the gate: a new car arrives, and the camera tells the API
+# (POST /api/cars). The API stores it in Redis. The dashboard shows it within ~3 seconds.
 #
 #   ./scripts/camera.sh              a random car that is not already in the lot
-#   ./scripts/camera.sh MUSTANG-65   a specific car (a file name from camera-samples/, without .png)
-#   ./scripts/camera.sh --list       show available cars
+#   ./scripts/camera.sh MUSTANG-65   a specific car (any plate; photos exist for the names in --list)
+#   ./scripts/camera.sh --list       show the cars that have a photo
 #
 # The stack must be running first:  docker compose up -d --build
+# Another address:  API_BASE=http://localhost:8081 ./scripts/camera.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SAMPLES_DIR="camera-samples"
-LOT_DIR="/usr/local/apache2/htdocs/plates"
+BASE="${API_BASE:-http://localhost:8080}"
+PHOTOS_DIR="web/html/cars"
 
 if [ "${1:-}" = "--list" ]; then
-  ls "$SAMPLES_DIR" | sed 's/\.png$//'
+  ls "$PHOTOS_DIR" | sed 's/\.png$//'
   exit 0
 fi
 
 if [ -n "${1:-}" ]; then
-  plate="$1"
-  if [ ! -f "$SAMPLES_DIR/$plate.png" ]; then
-    echo "No such car: $plate  (try: ./scripts/camera.sh --list)" >&2
-    exit 1
-  fi
+  plate="$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')"
 else
-  # cars already parked (strip the timestamp and extension from the file names)
-  parked=$(docker compose exec -T storage ls "$LOT_DIR" | sed -E 's/^[0-9]{8}-[0-9]{6}_//; s/\.png\r?$//')
+  # cars already parked, asked from the API
+  parked=$(curl -fsS "$BASE/api/cars" | grep -o '"plate":"[A-Z0-9-]*"' | cut -d'"' -f4 || true)
   candidates=()
-  for f in "$SAMPLES_DIR"/*.png; do
+  for f in "$PHOTOS_DIR"/*.png; do
     p=$(basename "$f" .png)
     if ! printf '%s\n' "$parked" | grep -qx "$p"; then candidates+=("$p"); fi
   done
   if [ "${#candidates[@]}" -eq 0 ]; then
-    echo "Every sample car is already in the lot. Release the volume with: docker compose down -v" >&2
+    echo "Every sample car is already in the lot. Release one on the dashboard first." >&2
     exit 1
   fi
   plate="${candidates[$((RANDOM % ${#candidates[@]}))]}"
 fi
 
-name="$(date -u +%Y%m%d-%H%M%S)_${plate}.png"
-docker compose cp "$SAMPLES_DIR/$plate.png" "storage:$LOT_DIR/$name"
-echo "Camera: spotted $plate -> saved as $name"
+code=$(curl -s -o /tmp/camera.out -w '%{http_code}' -X POST \
+  -H 'Content-Type: application/json' -d "{\"plate\":\"$plate\"}" "$BASE/api/cars" || true)
+case "$code" in
+  201) echo "Camera: spotted $plate -> sent to the API (201 Created)" ;;
+  409) echo "Camera: $plate is already in the lot (409)" >&2; exit 1 ;;
+  400) echo "Camera: the API rejected the plate '$plate' (400)" >&2; exit 1 ;;
+  *)   echo "Camera: cannot reach the API at $BASE (HTTP $code). Is the stack running?" >&2; exit 1 ;;
+esac

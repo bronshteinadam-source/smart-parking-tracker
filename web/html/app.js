@@ -2,20 +2,20 @@
 
 /* Retro Rides Parking - attendant dashboard.
 
-   How it works (no backend code needed):
-   1. The IoT camera saves each photo on the Apache storage server as
-          YYYYMMDD-HHMMSS_PLATE.png      (time in UTC)
-   2. Apache shows the folder as a web page ("directory listing").
-   3. This script downloads that page every few seconds through Nginx (/plates/),
-      finds the photo names, and turns each one into a card on the dashboard.
-   So: a new photo in the volume = a new car on the screen, with no page refresh. */
+   How it works:
+   1. The IoT camera (scripts/camera.*) sends a POST with the plate to the API.
+   2. The API (Flask) stores the car in Redis. Redis writes it to a Docker Volume.
+   3. This script asks the API "who is in the lot?" (GET /api/cars) every few seconds
+      with fetch(), and builds / updates / removes the cards. No page refresh needed.
+   Nginx forwards /api/... to the API container, so the browser only talks to one address. */
 
 const CONFIG = {
-  platesUrl: "/plates/",   // Nginx forwards this to the Apache container
+  apiUrl: "/api/cars",     // Nginx forwards this to the API container
+  photosUrl: "/cars/",     // sample car photos, served by Nginx
   capacity: 6,             // how many spots the lot has
   pricePerHour: 12,        // NIS per started hour
   graceMinutes: 10,        // free if the car leaves within this time
-  pollMs: 3000,            // how often we ask Apache for new photos
+  pollMs: 3000,            // how often we ask the API for changes
   newBadgeMinutes: 2,      // show the "NEW" badge for this long
 };
 
@@ -69,49 +69,41 @@ function jokeFor(plate) {
   return JOKES[h % JOKES.length];
 }
 
-/* ---------- Reading the Apache listing ---------- */
+/* ---------- Reading the API answer ---------- */
 
-// File name pattern: 20261109-203015_BELAIR-55.png
-const FILE_RE = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})_([A-Za-z0-9-]+)\.(?:png|jpe?g|webp|gif)$/i;
+// The API returns {capacity, parked, total_entered, cars:[{plate, arrived_at}]}.
+function parseCars(data) {
+  return data.cars
+    .filter((c) => /^[A-Z0-9-]{2,12}$/.test(c.plate))   // never trust data blindly
+    .map((c) => ({ plate: c.plate, arrivedAt: c.arrived_at * 1000 }))
+    .sort((a, b) => b.arrivedAt - a.arrivedAt);          // newest first
+}
 
-function parseListing(html) {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const cars = [];
-  for (const a of doc.querySelectorAll("a[href]")) {
-    const href = a.getAttribute("href");
-    const file = decodeURIComponent(href.split("?")[0].split("/").pop());
-    const m = FILE_RE.exec(file);
-    if (!m) continue; // skips "Parent Directory", sort links, other files
-    const [, Y, Mo, D, h, mi, s, plate] = m;
-    cars.push({
-      file,
-      plate: plate.toUpperCase(),
-      arrivedAt: Date.UTC(+Y, +Mo - 1, +D, +h, +mi, +s),
-    });
-  }
-  return cars.sort((a, b) => b.arrivedAt - a.arrivedAt); // newest first
+// A plate we have no photo for gets a drawn plate instead (data: image, allowed by the CSP).
+function fallbackPlate(plate) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 150"><rect width="300" height="150" fill="#d9d2c0"/><rect x="30" y="40" width="240" height="70" rx="8" fill="#fff" stroke="#222" stroke-width="4"/><text x="150" y="88" font-family="monospace" font-size="30" font-weight="bold" text-anchor="middle" fill="#222">${plate}</text></svg>`;
+  return "data:image/svg+xml," + encodeURIComponent(svg);
 }
 
 /* ---------- State ---------- */
 
-const elements = new Map();      // file name -> card element
-const known = new Set();         // files we already saw (to detect new arrivals)
+const elements = new Map();      // plate -> card element
+const known = new Set();         // plates we already saw (to detect new arrivals)
 let firstLoad = true;
-let lastListing = [];            // everything Apache listed on the last poll
-let visibleCars = [];            // cars currently shown (not released)
-let released = new Set(JSON.parse(store("rr-released") || "[]"));
+let visibleCars = [];            // cars currently in the lot
+let totalEntered = 0;            // how many cars entered, ever (from Redis)
 
 /* ---------- Building a card ---------- */
 
 function buildCard(car) {
   const el = document.createElement("article");
   el.className = "car";
-  el.dataset.file = car.file;
+  el.dataset.plate = car.plate;
 
   const arrived = new Date(car.arrivedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   el.innerHTML = `
     <span class="badge-new" hidden>NEW</span>
-    <img alt="License plate ${car.plate}" loading="lazy" src="${CONFIG.platesUrl}${encodeURIComponent(car.file)}">
+    <img alt="Classic car ${car.plate}" loading="lazy">
     <div class="car-body">
       <div class="plate-chip"></div>
       <div class="times"><span>Arrived <b>${arrived}</b></span><span>Parked <b class="dur"></b></span></div>
@@ -119,44 +111,39 @@ function buildCard(car) {
       <p class="joke"></p>
       <button class="btn-release" type="button">Release car</button>
     </div>`;
-  // textContent (not innerHTML) for text that comes from file names: no HTML injection
+  const img = el.querySelector("img");
+  img.addEventListener("error", () => { img.src = fallbackPlate(car.plate); }, { once: true });
+  img.src = `${CONFIG.photosUrl}${encodeURIComponent(car.plate)}.png`;
+  // textContent (not innerHTML) for text that comes from outside: no HTML injection
   el.querySelector(".plate-chip").textContent = car.plate;
   el.querySelector(".joke").textContent = jokeFor(car.plate);
-  el.querySelector(".btn-release").addEventListener("click", () => releaseCar(car.file));
+  el.querySelector(".btn-release").addEventListener("click", () => releaseCar(car.plate));
   return el;
 }
 
 /* ---------- Updating the screen ---------- */
 
 function syncCars(allCars) {
-  lastListing = allCars;
-
-  // forget "released" entries whose photo no longer exists (e.g. after `down -v`)
-  const present = new Set(allCars.map((c) => c.file));
-  const before = released.size;
-  released = new Set([...released].filter((f) => present.has(f)));
-  if (released.size !== before) store("rr-released", JSON.stringify([...released]));
-
-  visibleCars = allCars.filter((c) => !released.has(c.file));
-  const wanted = new Set(visibleCars.map((c) => c.file));
+  visibleCars = allCars;
+  const wanted = new Set(visibleCars.map((c) => c.plate));
   const lot = $("lot");
 
-  // remove cards that disappeared
-  for (const [file, el] of elements) {
-    if (!wanted.has(file)) { el.remove(); elements.delete(file); }
+  // remove cards that disappeared (released)
+  for (const [plate, el] of elements) {
+    if (!wanted.has(plate)) { el.remove(); elements.delete(plate); }
   }
 
   // add new cards and welcome them
   for (const car of visibleCars) {
-    if (!elements.has(car.file)) elements.set(car.file, buildCard(car));
-    if (!firstLoad && !known.has(car.file)) announceArrival(car);
+    if (!elements.has(car.plate)) elements.set(car.plate, buildCard(car));
+    if (!firstLoad && !known.has(car.plate)) announceArrival(car);
   }
-  allCars.forEach((c) => known.add(c.file));
+  allCars.forEach((c) => known.add(c.plate));
   firstLoad = false;
 
   // keep newest-first order (only moves a card if it is in the wrong place)
   visibleCars.forEach((car, i) => {
-    const el = elements.get(car.file);
+    const el = elements.get(car.plate);
     if (lot.children[i] !== el) lot.insertBefore(el, lot.children[i] || null);
   });
 
@@ -170,7 +157,7 @@ function tick() {
   let money = 0;
 
   for (const car of visibleCars) {
-    const el = elements.get(car.file);
+    const el = elements.get(car.plate);
     if (!el) continue;
     const age = now - car.arrivedAt;
     const fee = calcFee(age);
@@ -186,7 +173,7 @@ function tick() {
   $("statCap").textContent = `of ${CONFIG.capacity} spots`;
   $("statFree").textContent = free;
   $("statMoney").textContent = `₪${money}`;
-  $("statReleased").textContent = released.size;
+  $("statReleased").textContent = totalEntered;
 
   renderSlots(inside);
   updateFullAlert(inside);
@@ -223,14 +210,18 @@ function updateFullAlert(inside) {
 /* ---------- Actions ---------- */
 
 // Unique feature: Release car button.
-// The storage server is read-only for the dashboard, so "released" is remembered in this
-// browser (localStorage). The photo stays in the volume as the camera's record.
-function releaseCar(file) {
-  released.add(file);
-  store("rr-released", JSON.stringify([...released]));
-  const car = lastListing.find((c) => c.file === file);
-  syncCars(lastListing);
-  if (car) toast(`<b>${car.plate}</b> released. Safe travels!`);
+// Sends DELETE to the API, which removes the car from Redis (so it is gone for everyone).
+async function releaseCar(plate) {
+  try {
+    const res = await fetch(`${CONFIG.apiUrl}/${encodeURIComponent(plate)}`, { method: "DELETE" });
+    if (!res.ok && res.status !== 404) throw new Error("HTTP " + res.status);
+    visibleCars = visibleCars.filter((c) => c.plate !== plate);
+    syncCars(visibleCars);
+    toast(`<b>${plate}</b> released. Safe travels!`);
+  } catch (err) {
+    console.warn("Could not release the car:", err);
+    toast("Could not reach the API. Try again.");
+  }
 }
 
 function announceArrival(car) {
@@ -251,17 +242,19 @@ function toast(html) {
 function setStatus(ok) {
   const pill = $("status");
   pill.className = "pill " + (ok ? "pill-ok" : "pill-bad");
-  pill.textContent = ok ? "Camera storage: online" : "Camera storage: OFFLINE";
+  pill.textContent = ok ? "API: online" : "API: OFFLINE";
 }
 
 async function poll() {
   try {
-    const res = await fetch(CONFIG.platesUrl, { cache: "no-store" });
+    const res = await fetch(CONFIG.apiUrl, { cache: "no-store" });
     if (!res.ok) throw new Error("HTTP " + res.status);
-    syncCars(parseListing(await res.text()));
+    const data = await res.json();
+    totalEntered = data.total_entered;
+    syncCars(parseCars(data));
     setStatus(true);
   } catch (err) {
-    console.warn("Could not read the storage server:", err);
+    console.warn("Could not read the API:", err);
     setStatus(false);
   }
 }

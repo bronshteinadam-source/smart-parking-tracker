@@ -1,43 +1,48 @@
 # Windows PowerShell version of scripts/camera.sh
-# Pretend to be the IoT camera: a new car arrives and its photo is saved in the Apache storage Volume.
+# Pretend to be the IoT camera: a new car arrives and the camera tells the API (POST /api/cars).
 #
 #   .\scripts\camera.ps1              a random car that is not already in the lot
-#   .\scripts\camera.ps1 MUSTANG-65   a specific car (file name from camera-samples\, without .png)
-#   .\scripts\camera.ps1 -List        show available cars
+#   .\scripts\camera.ps1 MUSTANG-65   a specific car
+#   .\scripts\camera.ps1 -List        show the cars that have a photo
 #
 # The stack must be running first:  docker compose up -d --build
 param(
     [string]$Plate = "",
-    [switch]$List
+    [switch]$List,
+    [string]$Base = "http://localhost:8080"
 )
 
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path -Parent $PSScriptRoot)
 
-$samplesDir = "camera-samples"
-$lotDir = "/usr/local/apache2/htdocs/plates"
+$photosDir = "web\html\cars"
 
 if ($List) {
-    Get-ChildItem "$samplesDir\*.png" | ForEach-Object { $_.BaseName }
+    Get-ChildItem "$photosDir\*.png" | ForEach-Object { $_.BaseName }
     exit 0
 }
 
 if ($Plate -ne "") {
-    if (-not (Test-Path "$samplesDir\$Plate.png")) {
-        Write-Error "No such car: $Plate  (try: .\scripts\camera.ps1 -List)"
-    }
+    $Plate = $Plate.ToUpper()
 } else {
-    # cars already parked (strip the timestamp and extension from the file names)
-    $parked = docker compose exec -T storage ls $lotDir |
-        ForEach-Object { ($_ -replace '^\d{8}-\d{6}_', '') -replace '\.png\s*$', '' }
-    $candidates = Get-ChildItem "$samplesDir\*.png" | ForEach-Object { $_.BaseName } |
+    # cars already parked, asked from the API
+    try { $parked = (Invoke-RestMethod "$Base/api/cars").cars | ForEach-Object { $_.plate } }
+    catch { Write-Error "Cannot reach the API at $Base. Is the stack running?" }
+    $candidates = Get-ChildItem "$photosDir\*.png" | ForEach-Object { $_.BaseName } |
         Where-Object { $parked -notcontains $_ }
     if (-not $candidates) {
-        Write-Error "Every sample car is already in the lot. Reset with: docker compose down -v"
+        Write-Error "Every sample car is already in the lot. Release one on the dashboard first."
     }
     $Plate = $candidates | Get-Random
 }
 
-$name = "{0}_{1}.png" -f (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss"), $Plate
-docker compose cp "$samplesDir\$Plate.png" "storage:$lotDir/$name"
-Write-Host "Camera: spotted $Plate -> saved as $name"
+$body = @{ plate = $Plate } | ConvertTo-Json -Compress
+try {
+    Invoke-RestMethod -Method Post -Uri "$Base/api/cars" -ContentType "application/json" -Body $body | Out-Null
+    Write-Host "Camera: spotted $Plate -> sent to the API (201 Created)"
+} catch {
+    $code = $_.Exception.Response.StatusCode.value__
+    if ($code -eq 409) { Write-Error "Camera: $Plate is already in the lot (409)" }
+    elseif ($code -eq 400) { Write-Error "Camera: the API rejected the plate '$Plate' (400)" }
+    else { Write-Error "Camera: cannot reach the API at $Base. Is the stack running?" }
+}

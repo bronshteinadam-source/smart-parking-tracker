@@ -26,7 +26,7 @@
     </div>
 
     <div class="controls">
-      <span id="status" class="pill pill-wait" title="Connection to the Apache storage server">Connecting&hellip;</span>
+      <span id="status" class="pill pill-wait" title="Connection to the API server">Connecting&hellip;</span>
       <span id="clock" class="clock" aria-label="Current time">--:--</span>
       <button id="soundBtn" class="btn-ghost" type="button" aria-pressed="false" title="Honk when a car arrives">Sound: off</button>
       <button id="themeBtn" class="btn-ghost" type="button" title="Toggle Dark Mode">Dark mode</button>
@@ -44,7 +44,7 @@
       <div class="stat"><span class="stat-label">Cars inside</span><span class="stat-value" id="statInside">0</span><span class="stat-sub" id="statCap">of 6 spots</span></div>
       <div class="stat"><span class="stat-label">Free spots</span><span class="stat-value" id="statFree">6</span><span class="stat-sub">ready for a classic</span></div>
       <div class="stat"><span class="stat-label">Meter running</span><span class="stat-value" id="statMoney">&#8362;0</span><span class="stat-sub" id="statPrice">&#8362;12 / started hour</span></div>
-      <div class="stat"><span class="stat-label">Released</span><span class="stat-value" id="statReleased">0</span><span class="stat-sub">cars that drove away</span></div>
+      <div class="stat"><span class="stat-label">Entered</span><span class="stat-value" id="statReleased">0</span><span class="stat-sub">cars since the start</span></div>
     </section>
 
     <!-- Row of parking spots: filled = occupied -->
@@ -56,7 +56,7 @@
   </main>
 
   <footer>
-    <p>Photos come from the IoT camera &rarr; Apache storage server &rarr; this page (Nginx).
+    <p>Cars come from the IoT camera &rarr; API (Flask) &rarr; Redis database (saved in a Volume) &rarr; this page (Nginx).
        Price: <span id="footPrice"></span>. Cheat codes are not just for video games&hellip;</p>
   </footer>
 

@@ -1,4 +1,4 @@
-# Web server: Nginx. It serves the dashboard and forwards photo requests to Storage.
+# Web server: Nginx. It serves the dashboard and the car photos and forwards /api/ requests to the API.
 FROM nginx:1.27-alpine
 
 # Replace the default site with ours

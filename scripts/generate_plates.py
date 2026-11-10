@@ -8,8 +8,8 @@ Run from the repository root:
     python scripts/generate_plates.py
 
 Output:
-  storage/seed/<PLATE>.png        photos that are loaded the first time the volume is empty
-  camera-samples/<PLATE>.png      photos that scripts/camera.sh drops into the lot one by one
+  web/html/cars/<PLATE>.png       one photo per car; the dashboard shows /cars/<PLATE>.png
+                                  and scripts/camera.* picks a plate from this folder
 """
 import os
 import random
@@ -117,7 +117,7 @@ def make(text, bg, fg, caption, out_dir):
 
 if __name__ == "__main__":
     for item in SEED:
-        make(*item, os.path.join(ROOT, "storage", "seed"))
+        make(*item, os.path.join(ROOT, "web", "html", "cars"))
     for item in SAMPLES:
-        make(*item, os.path.join(ROOT, "camera-samples"))
-    print(f"Generated {len(SEED)} seed images and {len(SAMPLES)} camera samples.")
+        make(*item, os.path.join(ROOT, "web", "html", "cars"))
+    print(f"Generated {len(SEED) + len(SAMPLES)} car photos in web/html/cars/.")
