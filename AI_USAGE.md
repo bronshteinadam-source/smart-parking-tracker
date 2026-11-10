@@ -20,10 +20,11 @@ We used an AI assistant (Claude, Anthropic) to assist in building this project. 
 | 12 | Asked for explanations of the whole project (the teacher will ask each of us questions) and for diagrams, slides and per-person reading texts. | Hebrew explanations, a project map, a presentation and reading texts. |
 | 13 | Asked: "are you sure we don't need Track 2?" and told it our class is Yud (not Yud-Gimel). | The AI re-read the assignment, agreed Track 2 fits our class (see mistake H) and offered to convert. |
 | 14 | Asked it to convert the project to Track 2 with as few changes as possible. | New `api/` (Flask), Redis service with a Volume, new `docker-compose.yml`, `nginx.conf` proxy to the API, `app.js` using `fetch`, camera scripts using HTTP POST, `persistence-test.sh`, updated CI and documentation. |
+| 15 | Showed it the dashboard saying "16 of 6 spots" and asked it to make the lot hold only 6 cars. | An atomic check in `api/app.py` (the API answers `409` when the lot is full), clearer messages in both camera scripts, one more assertion in `smoke-test.sh` and updated documentation (see mistake K). |
 
 ## 2. Mistakes and inaccuracies the AI made, and how they were fixed
 
-Mistakes A-G were found in version 1 (Track 1: Nginx + Apache). Their lessons still apply to version 2; the Apache-specific code no longer exists. H, I and J are about the move to Track 2.
+Mistakes A-G were found in version 1 (Track 1: Nginx + Apache). Their lessons still apply to version 2; the Apache-specific code no longer exists. H, I, J and K are about Track 2.
 
 ### A. Premature assumption of track selection
 The AI asked four initial configuration questions. During our discussion of setup requirements, it assumed a choice and began drafting Track 1 templates before we officially confirmed our preference.
@@ -73,6 +74,11 @@ The first CI run for Track 2 failed after 13 seconds, in the hadolint step. The 
 How we caught it: the red CI run in the Actions tab; the annotation said step 4 (hadolint) exited with code 1.
 Fix: the line was changed to `USER 10001`, the same id the Dockerfile already uses when it creates the user (`adduser -D -u 10001 apiuser`). The AI then ran hadolint itself on both Dockerfiles (no findings), we pushed, and CI turned green. The version tag `v2.0.0` was moved to the fixed commit so GHCR publishes the working images.
 
+### K. The API accepted more cars than the lot has spots
+The AI kept the Track 1 behaviour on purpose: the API accepted every car and the dashboard only showed a red "over capacity" banner. The README even described this as a feature. In practice it let the lot grow to 16 cars on 6 spots (the camera script was run many times), which looks like a bug.
+How we caught it: the dashboard showed "16 of 6 spots" and we asked the AI to make it hold only 6.
+Fix: `POST /api/cars` now refuses a 7th car with `409` ("lot is full"). The check and the insert run as one Lua script inside Redis, so two cameras reporting at the same moment cannot squeeze in an extra car; a plain "count, then add" would have had that race. The AI tested it against a real Redis: 20 parallel requests with 4 free spots let in exactly 4 cars. `smoke-test.sh` now checks the limit (still 7 checks in total), and the camera scripts print why a car was refused.
+
 ## 3. What we changed or checked ourselves
 
 Version 1 (Track 1):
@@ -87,6 +93,7 @@ Version 2 (Track 2): the team runs `docker compose up --build`, `scripts/smoke-t
 
 - 10.11.2026: ran on Docker Desktop (Windows ARM). All three containers became healthy, `smoke-test.sh` passed 7/7 and `persistence-test.sh` passed (the car added before `docker compose down` was still there after `up`).
 - 10.11.2026: the first CI run failed in hadolint (see mistake J). After the one-line fix, the CI run on `main` and on the tag `v2.0.0` both passed, and the images were published to GHCR.
+- 10.11.2026: Docker Desktop's WSL engine hung on the laptop (HTTP 500 from the engine, the dashboard showed "API: OFFLINE"). The code was fine: after restarting the computer the containers came back by themselves and the cars added before the restart were still there, because they live in the Volume. Afterwards we added the 6-spot limit (mistake K).
 
 ## 4. Our rule for using AI
 
