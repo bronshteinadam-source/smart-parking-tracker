@@ -12,7 +12,7 @@ COPY app.py .
 
 # Run as a normal user, not root
 RUN adduser -D -u 10001 apiuser
-USER apiuser
+USER 10001
 
 EXPOSE 8000
 
