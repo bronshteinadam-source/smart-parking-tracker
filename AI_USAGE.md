@@ -66,6 +66,7 @@ Lesson: instructions written for one operating system need to be tried on the re
 - Created the GitHub repository and pushed the project. GitHub Actions runs `scripts/smoke-test.sh` on every push and publishes the images to GHCR.
 - Each team member writes notes in their own words on the part they present in the Code Review (`docs/notes-*.md`). `ARCHITECTURE.md` explains the reasons behind each choice.
 - Gal (part C): went through `storage/entrypoint.sh` and `scripts/camera.ps1` and wrote `docs/notes-C.md` with help from the AI (Claude).
+- - Itai (part B): went through both Dockerfiles and `web/nginx.conf`, wrote `docs/notes-B.md` with help from the AI (Claude), and checked that the GitHub Actions run after my commit (#5) was green: both containers became healthy and the smoke test passed.
 
 ## 4. Our rule for using AI
 
