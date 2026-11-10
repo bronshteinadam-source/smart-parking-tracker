@@ -1,22 +1,22 @@
 # AI usage log
 
-We used an AI assistant (Claude, Anthropic) to help build this project. This file lists what we asked it, what it got wrong, and how we handled it. We read and understand every file in the repository and can explain it in the Code Review.
+We used an AI assistant (Claude, Anthropic) to build this project. The AI wrote most of the code and documentation. Our part was to direct it, run and check the result, and understand it well enough to explain it in the Code Review. This file lists what we asked it, what it got wrong, and how we handled it.
 
 ## 1. Prompts we sent
 
-| # | Prompt (summary) | What the AI produced |
+| # | Request (summarized from our chat with the AI) | What the AI produced |
 |---|---|---|
-| 1 | Attached the assignment (.docx) and wrote: *"Your job is to do the most amount of work in this project. Ask me anything you need. Tell me what I need to do and ask for permissions. ... finish the product in like an hour or two. Ask me for opinions, but don't ask me too much."* | Read the assignment, listed the decisions it needed from us (track, theme, language) |
-| 2 | Answered the questions: *"What's easier"* for the track | AI first picked Track 1 by itself (see mistake A) |
-| 3 | *"Wait, you didn't ask me those questions. It's not true, no preferences. ... Ask me again, but explain more so I can actually understand what I'm choosing."* | Asked again with clear explanations. We chose **Track 1 - Lite**, theme **Classic cars lot**, language **English** |
-| 4 | (Build phase, AI worked on its own from our choices) Build the Track 1 system: Nginx dashboard + Apache storage, Docker Compose, Volume, GitHub Actions with the GHCR bonus, README, docs | `docker-compose.yml`, both Dockerfiles, `nginx.conf`, `plates.conf`, `entrypoint.sh`, dashboard (HTML/CSS/JS), camera scripts, workflow, documentation |
-| 5 | *"Do what you can on your own. Take as much time as you need. to complete it"* | The AI built and tested the whole system on its own (see row 4) |
-| 6 | *"Round up everything you can, make everything make sense, and maybe write something short in Hebrew to make my crewmates understand our work."* | `docs/TEAM_SUMMARY_HE.md`, `docs/TEAM_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`, `docs/CODE_REVIEW_PREP.md`, the presentation |
-| 7 | *"Round up things like all the code... It should make sense, and it should actually be good. Compare it to other stuff... make the project better however you can."* | The AI compared the project with current best practice and improved it (see mistakes D and E) |
-| 8 | *"tell me what to do simply and easy. reduce my work as much as you can"* | A short step-by-step list for running and publishing the project |
-| 9 | Pasted a screenshot of Docker Desktop stuck on "Starting the Docker Engine..." and later "Engine running" | Troubleshooting steps for Docker Desktop on our Windows ARM laptop |
-| 10 | *"do it urself"* | The AI tried to run the project on our laptop through the desktop app, but could not get access to a folder, so it gave us the exact commands instead (see mistake G) |
-| 11 | Pasted the PowerShell errors we got (scripts blocked, `git` not found) | The AI gave the fixes (see mistake G) |
+| 1 | Provided the assignment document. Asked the AI to do as much of the implementation as possible, to ask us for any decision it needed, and to tell us which steps only we could do. | Read the assignment and listed the decisions it needed from us (track, theme, language) |
+| 2 | Answered its questions (for the track we said only "what's easier"). | The AI picked Track 1 by itself (see mistake A) |
+| 3 | Pointed out that we had not actually been asked the questions, and asked it to ask again with clearer explanations. | Asked again with explanations. We chose **Track 1 - Lite**, theme **Classic cars lot**, language **English** |
+| 4 | Asked it to build the Track 1 system from our choices: Nginx dashboard + Apache storage, Docker Compose, Volume, GitHub Actions with the GHCR bonus, README, docs. | `docker-compose.yml`, both Dockerfiles, `nginx.conf`, `plates.conf`, `entrypoint.sh`, dashboard (HTML/CSS/JS), camera scripts, workflow, documentation |
+| 5 | Asked it to complete the work on its own and take the time it needed. | The AI built and tested the whole system without further input (see row 4) |
+| 6 | Asked it to consolidate everything and write a short Hebrew summary so our teammates understand the work. | `docs/TEAM_SUMMARY_HE.md`, `docs/TEAM_CHECKLIST.md`, `docs/DEMO_SCRIPT.md`, `docs/CODE_REVIEW_PREP.md`, the presentation |
+| 7 | Asked it to review the code for quality, compare it with similar projects and improve it. | Improvements based on current best practice (see mistakes D and E) |
+| 8 | Asked for simple, minimal-effort steps to run and publish the project. | A short step-by-step list |
+| 9 | Shared a screenshot of Docker Desktop stuck on starting the engine, and later of it running. | Troubleshooting steps for Docker Desktop on our Windows ARM laptop |
+| 10 | Asked the AI to run the project on our laptop itself. | The AI tried through the desktop app but could not get access to a folder, so it gave us the exact commands instead (see mistake G) |
+| 11 | Shared the PowerShell errors we got (script blocked, `git` not found). | The fixes (see mistake G) |
 
 ## 2. Mistakes and inaccuracies the AI made, and how they were fixed
 
@@ -62,8 +62,9 @@ Lesson: instructions written for one operating system need to be tried on the re
 
 ## 3. What we changed or checked ourselves
 
-- Ran `docker compose up --build` and `./scripts/smoke-test.sh`, opened the dashboard, sent cars with `scripts/camera.ps1` (Windows), and did `docker compose down` / `up` to confirm the Volume keeps the cars.
-- Read through the Dockerfiles, `docker-compose.yml`, `nginx.conf` and the workflow so we can answer Code Review questions (see `ARCHITECTURE.md` for the reasons behind each choice).
+- Ran `docker compose up --build` on a Windows ARM laptop, opened the dashboard, sent cars with `scripts/camera.ps1`, and did `docker compose down` / `up` to confirm the Volume keeps the cars.
+- Created the GitHub repository and pushed the project. GitHub Actions runs `scripts/smoke-test.sh` on every push and publishes the images to GHCR.
+- Each team member writes notes in their own words on the part they present in the Code Review (`docs/notes-*.md`). `ARCHITECTURE.md` explains the reasons behind each choice.
 
 ## 4. Our rule for using AI
 
