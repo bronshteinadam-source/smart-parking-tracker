@@ -6,7 +6,7 @@ A "smart parking lot" for **classic cars**. An IoT camera at the gate photograph
 
 This is **Track 1 - Lite** of the DevOps assignment: two micro-services orchestrated with **Docker Compose**, photos kept in a **Docker Volume**, and a **GitHub Actions** pipeline that checks the build on every push and publishes the images to **GitHub Container Registry**.
 
-> Team: Adam Bronshtein, _(add teammate names here)_
+> Team: Adam Bronshtein, Ofir Moshe, Gal Rotem, Itay Cohen
 
 ---
 
