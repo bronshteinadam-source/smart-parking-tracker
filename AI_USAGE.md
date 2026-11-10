@@ -23,7 +23,7 @@ We used an AI assistant (Claude, Anthropic) to assist in building this project. 
 
 ## 2. Mistakes and inaccuracies the AI made, and how they were fixed
 
-Mistakes A-G were found in version 1 (Track 1: Nginx + Apache). Their lessons still apply to version 2; the Apache-specific code no longer exists. H and I are about the move to Track 2.
+Mistakes A-G were found in version 1 (Track 1: Nginx + Apache). Their lessons still apply to version 2; the Apache-specific code no longer exists. H, I and J are about the move to Track 2.
 
 ### A. Premature assumption of track selection
 The AI asked four initial configuration questions. During our discussion of setup requirements, it assumed a choice and began drafting Track 1 templates before we officially confirmed our preference.
@@ -68,6 +68,11 @@ Fix: the project was converted to Track 2 (version 2): the Apache storage server
 ### I. Things the AI could not test (Track 2)
 The AI had no Docker engine in its workspace. It tested the API against a real Redis server with `curl`, ran the smoke test against a stand-in for Nginx, and checked the dashboard in a headless browser, but it could not run `docker compose up`, the Dockerfile builds or hadolint. These are the parts we must run ourselves and fix if they fail.
 
+### J. hadolint failed in CI (result of mistake I)
+The first CI run for Track 2 failed after 13 seconds, in the hadolint step. The AI had written `USER apiuser` in `api/Dockerfile`, and hadolint rule DL3066 wants a numeric user id, because a name may not be resolvable by the host system. The AI had not run hadolint before handing over the code.
+How we caught it: the red CI run in the Actions tab; the annotation said step 4 (hadolint) exited with code 1.
+Fix: the line was changed to `USER 10001`, the same id the Dockerfile already uses when it creates the user (`adduser -D -u 10001 apiuser`). The AI then ran hadolint itself on both Dockerfiles (no findings), we pushed, and CI turned green. The version tag `v2.0.0` was moved to the fixed commit so GHCR publishes the working images.
+
 ## 3. What we changed or checked ourselves
 
 Version 1 (Track 1):
@@ -78,7 +83,10 @@ Version 1 (Track 1):
 - Gal (part C): Reviewed and verified `storage/entrypoint.sh` and `scripts/camera.ps1`.
 - Itai (part B): Reviewed Dockerfiles and `web/nginx.conf`, verified health checks, and validated passing CI workflow runs.
 
-Version 2 (Track 2): the team runs `docker compose up --build`, `scripts/smoke-test.sh` and `scripts/persistence-test.sh` on a real Docker engine and checks the CI run before the demo. (Fill in the date and the result here once done.)
+Version 2 (Track 2): the team runs `docker compose up --build`, `scripts/smoke-test.sh` and `scripts/persistence-test.sh` on a real Docker engine and checks the CI run before the demo.
+
+- 10.11.2026: ran on Docker Desktop (Windows ARM). All three containers became healthy, `smoke-test.sh` passed 7/7 and `persistence-test.sh` passed (the car added before `docker compose down` was still there after `up`).
+- 10.11.2026: the first CI run failed in hadolint (see mistake J). After the one-line fix, the CI run on `main` and on the tag `v2.0.0` both passed, and the images were published to GHCR.
 
 ## 4. Our rule for using AI
 
