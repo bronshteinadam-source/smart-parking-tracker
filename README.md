@@ -8,6 +8,14 @@ This is **Track 2 - Full Stack DevOps** of the DevOps assignment: three services
 
 > Team: Adam Bronshtein, Ofir Moshe, Gal Rotem, Itay Cohen
 >
+> We worked on the project together on one computer, so most commits are under Adam's account. Everyone also made commits from their own account.
+>
+> Areas of responsibility (who explains what):
+> - **Adam**: backend (`api/`: Flask API, Redis logic, the 6-spot limit)
+> - **Itay**: frontend and Nginx (`web/`)
+> - **Ofir**: Docker Compose and documentation (`docker-compose.yml`, README, ARCHITECTURE, AI_USAGE)
+> - **Gal**: CI/CD and tests (`.github/workflows/ci.yml`, `scripts/`)
+>
 > History: version 1 was built as Track 1 - Lite (Nginx + Apache). See [docs/track2-changes.md](docs/track2-changes.md).
 
 ---
