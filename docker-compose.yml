@@ -1,59 +1,59 @@
-name: smart-parking
+name: smart-parking                                           # שם הפרויקט. Docker משתמש בו כקידומת לשמות
 
-services:
-  web:
-    build: ./web
-    image: smart-parking-web
-    container_name: parking-web
-    ports:
-      - "8080:80"            # the only door to the outside world
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    networks:
-      - parking-net
-    restart: unless-stopped
+services:                                                     # רשימת השירותים (הקונטיינרים)
+  web:                                                        # שירות 1: שרת Nginx. מציג את האתר ומעביר בקשות ל-API
+    build: ./web                                              # בונה את התמונה מה-Dockerfile שבתיקייה web
+    image: smart-parking-web                                  # השם שיינתן לתמונה שנבנתה
+    container_name: parking-web                               # שם קבוע לקונטיינר (נוח ב-docker ps)
+    ports:                                                    # פורטים שנפתחים החוצה, למחשב שלך
+      - "8080:80"                                             # פורט 8080 במחשב מועבר לפורט 80 בתוך הקונטיינר. הדלת היחידה החוצה
+    depends_on:                                               # סדר העלייה: web לא מתחיל לפני ש...
+      api:                                                    # ...השירות api...
+        condition: service_healthy                            # ...נהיה healthy (תקין). לא רק "התחיל"
+    healthcheck:                                              # בדיקת תקינות: Docker בודק כל כמה זמן שהשירות באמת עובד
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]  # הפקודה שנבדקת: פנייה ל-/healthz של Nginx. אם עונה, השירות healthy
+      interval: 10s                                           # בודק כל 10 שניות
+      timeout: 3s                                             # אם אין תשובה תוך 3 שניות, הבדיקה נכשלה
+      retries: 3                                              # 3 כישלונות ברצף והשירות נחשב unhealthy
+    networks:                                                 # הרשתות שהשירות מחובר אליהן
+      - parking-net                                           # הרשת הפרטית המשותפת לשלושת השירותים
+    restart: unless-stopped                                   # אם הקונטיינר קרס, Docker מעלה אותו שוב. לא עולה רק אם עצרת אותו ידנית
 
-  api:
-    build: ./api
-    image: smart-parking-api
-    container_name: parking-api
-    environment:
-      REDIS_HOST: redis
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    networks:
-      - parking-net
-    restart: unless-stopped
+  api:                                                        # שירות 2: ה-API ב-Flask. כאן הלוגיקה של החניון
+    build: ./api                                              # בונה את התמונה מה-Dockerfile שבתיקייה api
+    image: smart-parking-api                                  # השם שיינתן לתמונה שנבנתה
+    container_name: parking-api                               # שם קבוע לקונטיינר
+    environment:                                              # משתני סביבה שנכנסים לקונטיינר
+      REDIS_HOST: redis                                       # כך ה-API יודע איפה Redis: לפי שם השירות. Docker מתרגם אותו ל-IP
+    depends_on:                                               # api מחכה ל...
+      redis:                                                  # ...השירות redis...
+        condition: service_healthy                            # ...שיהיה healthy לפני שהוא מתחיל
+    healthcheck:                                              # בדיקת תקינות של ה-API
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=2)"]  # הבדיקה: קריאה ל-/api/health של ה-API (שגם עושה ping ל-Redis)
+      interval: 10s                                           # בודק כל 10 שניות
+      timeout: 3s                                             # 3 שניות לכל בדיקה
+      retries: 3                                              # 3 כישלונות = unhealthy
+    networks:                                                 # הרשתות
+      - parking-net                                           # אותה רשת פרטית כמו web ו-redis
+    restart: unless-stopped                                   # עולה מחדש אם קרס
 
-  redis:
-    image: redis:7-alpine
-    container_name: parking-redis
-    command: ["redis-server", "--appendonly", "yes"]   # write every change to disk
-    volumes:
-      - redis-data:/data                                # <- the Volume
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    networks:
-      - parking-net
-    restart: unless-stopped
+  redis:                                                      # שירות 3: מסד הנתונים. שומר את הרכבים
+    image: redis:7-alpine                                     # תמונה רשמית מוכנה, לכן אין build ואין Dockerfile שלנו
+    container_name: parking-redis                             # שם קבוע לקונטיינר
+    command: ["redis-server", "--appendonly", "yes"]          # מפעיל את Redis עם appendonly: כל שינוי נכתב לקובץ בדיסק
+    volumes:                                                  # חיבור אחסון קבוע לקונטיינר
+      - redis-data:/data                                      # ה-Volume redis-data מחובר לתיקייה /data שבה Redis שומר. הנתונים שורדים down
+    healthcheck:                                              # בדיקת תקינות של Redis
+      test: ["CMD", "redis-cli", "ping"]                      # שולח ping ל-Redis. אם עונה PONG, הוא healthy
+      interval: 10s                                           # בודק כל 10 שניות
+      timeout: 3s                                             # 3 שניות לכל בדיקה
+      retries: 3                                              # 3 כישלונות = unhealthy
+    networks:                                                 # הרשתות
+      - parking-net                                           # אותה רשת פרטית
+    restart: unless-stopped                                   # עולה מחדש אם קרס
 
-volumes:
-  redis-data:
+volumes:                                                      # הכרזה על ה-Volume (האחסון הקבוע)
+  redis-data:                                                 # נוצר פעם אחת ונשאר גם אחרי down. רק down -v מוחק אותו
 
-networks:
-  parking-net:
+networks:                                                     # הכרזה על הרשת
+  parking-net:                                                # הרשת הפרטית. השירותים מוצאים זה את זה לפי שם

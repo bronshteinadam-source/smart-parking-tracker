@@ -1,125 +1,125 @@
-name: CI/CD
+name: CI/CD                                                   # שם ה-workflow. מופיע בלשונית Actions ב-GitHub
 
-# Runs on every push to any branch, on every version tag (v1.0.0 ...), and on pull requests.
-on:
-  push:
-    branches: ["**"]
-    tags: ["v*.*.*"]
-  pull_request:
+# רץ בכל push לכל branch, בכל tag של גרסה (v1.0.0 ...), ובכל pull request.
+on:                                                           # מתי ה-workflow מתחיל לרוץ
+  push:                                                       # כשדוחפים קוד...
+    branches: ["**"]                                          # ...לכל branch
+    tags: ["v*.*.*"]                                          # ...וגם כשדוחפים tag של גרסה, למשל v2.0.0
+  pull_request:                                               # וגם בכל pull request
 
-# Least privilege: by default the token can only read the code. The publish job asks for more.
-permissions:
-  contents: read
+# הרשאה מינימלית: כברירת מחדל ה-token יכול רק לקרוא את הקוד. job הפרסום מבקש עוד.
+permissions:                                                  # ההרשאות של ה-token האוטומטי של GitHub
+  contents: read                                              # קריאת הקוד בלבד
 
-# A newer push to the same branch cancels the older, now pointless, run.
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+# push חדש לאותו branch מבטל ריצה ישנה שכבר לא רלוונטית.
+concurrency:                                                  # מניעת ריצות כפולות
+  group: ci-${{ github.ref }}                                 # קבוצה אחת לכל branch או tag
+  cancel-in-progress: true                                    # ריצה חדשה מבטלת את הישנה באותה קבוצה
 
-jobs:
+jobs:                                                         # רשימת ה-jobs. כל job רץ על מכונה נפרדת
   # ------------------------------------------------------------------
-  # Job 1 (required): is the Docker build healthy?
+  # Job 1 (חובה): האם בניית ה-Docker תקינה?
   # ------------------------------------------------------------------
-  build:
-    name: Docker build check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
+  build:                                                      # ה-job הראשון: בדיקה
+    name: Docker build check                                  # השם שמוצג ב-GitHub
+    runs-on: ubuntu-latest                                    # המכונה: Linux חדשה וריקה, נוצרת לכל ריצה
+    timeout-minutes: 10                                       # אם רץ יותר מ-10 דקות, נעצר
+    steps:                                                    # הצעדים, לפי הסדר. צעד שנכשל עוצר את ה-job
+      - name: Check out the code                              # צעד 1
+        uses: actions/checkout@v6                             # מוריד את הקוד של הריפו למכונה
 
-      - name: Validate docker-compose.yml
-        run: docker compose config --quiet
+      - name: Validate docker-compose.yml                     # צעד 2
+        run: docker compose config --quiet                    # בודק שקובץ ה-Compose תקין (בלי להריץ אותו)
 
-      - name: Lint the Dockerfiles (hadolint)
-        run: |
+      - name: Lint the Dockerfiles (hadolint)                 # צעד 3
+        run: |                                                # בודק את שני ה-Dockerfiles עם hadolint (כלי שמזהה כתיבה לא טובה). שתי הפקודות למטה
           docker run --rm -i hadolint/hadolint < web/Dockerfile
           docker run --rm -i hadolint/hadolint < api/Dockerfile
 
-      - name: Build the images (web + api)
-        run: docker compose build
+      - name: Build the images (web + api)                    # צעד 4
+        run: docker compose build                             # בונה את התמונות של web ו-api
 
-      - name: Start the stack and wait until every service is healthy
-        run: docker compose up -d --wait --wait-timeout 90
+      - name: Start the stack and wait until every service is healthy  # צעד 5
+        run: docker compose up -d --wait --wait-timeout 90    # מרים הכל ברקע (-d). --wait מחכה שכל השירותים יהיו healthy, עד 90 שניות
 
-      - name: Smoke test (same script you can run locally)
-        run: bash scripts/smoke-test.sh
+      - name: Smoke test (same script you can run locally)    # צעד 6
+        run: bash scripts/smoke-test.sh                       # מריץ 7 בדיקות על המערכת שרצה
 
-      - name: Persistence test (down + up, the data must survive in the Volume)
-        run: bash scripts/persistence-test.sh
+      - name: Persistence test (down + up, the data must survive in the Volume)  # צעד 7
+        run: bash scripts/persistence-test.sh                 # מוסיף רכב, עושה down ואז up, ובודק שהרכב נשאר (הוכחה ל-Volume)
 
-      - name: Show container logs if something failed
-        if: failure()
-        run: docker compose logs
+      - name: Show container logs if something failed         # צעד 8
+        if: failure()                                         # רץ רק אם צעד קודם נכשל
+        run: docker compose logs                              # מדפיס את הלוגים של השירותים כדי להבין מה נכשל
 
-      - name: Clean up
-        if: always()
-        run: docker compose down -v
+      - name: Clean up                                        # צעד 9
+        if: always()                                          # רץ תמיד, גם אחרי כישלון
+        run: docker compose down -v                           # מוחק הכל כולל ה-Volume. בסדר, כי המכונה הזמנית נזרקת אחר כך
 
   # ------------------------------------------------------------------
-  # Job 2 (bonus): publish the images to GitHub Container Registry (ghcr.io)
-  # Only after the build job passed, and only for main or version tags.
+  # Job 2 (בונוס): פרסום התמונות ל-GitHub Container Registry (ghcr.io)
+  # רק אחרי ש-build עבר, ורק עבור main או tag של גרסה.
   # ------------------------------------------------------------------
-  publish:
-    name: Publish images to GHCR
-    needs: build
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      packages: write          # lets the built-in GITHUB_TOKEN push to ghcr.io
-    strategy:
-      matrix:
-        service: [web, api]
-    steps:
-      - name: Check out the code
-        uses: actions/checkout@v6
+  publish:                                                    # ה-job השני: פרסום התמונות
+    name: Publish images to GHCR                              # השם שמוצג ב-GitHub
+    needs: build                                              # מחכה ל-build. אם הוא נכשל, publish לא רץ בכלל
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))  # רק על push ל-main או ל-tag שמתחיל ב-v
+    runs-on: ubuntu-latest                                    # מכונת Linux חדשה
+    timeout-minutes: 20                                       # אם רץ יותר מ-20 דקות, נעצר
+    permissions:                                              # הרשאות מיוחדות ל-job הזה
+      contents: read                                          # קריאת הקוד
+      packages: write                                         # מאפשר ל-GITHUB_TOKEN לדחוף תמונות ל-ghcr.io
+    strategy:                                                 # אסטרטגיית הרצה
+      matrix:                                                 # מריץ את אותו job כמה פעמים עם ערכים שונים
+        service: [web, api]                                   # פעם עבור web ופעם עבור api
+    steps:                                                    # הצעדים של publish
+      - name: Check out the code                              # מוריד את הקוד...
+        uses: actions/checkout@v6                             # ...של הריפו
 
-      # Lets one build produce an image for both common CPU types (amd64 = most PCs,
-      # arm64 = Apple Silicon, Windows on ARM, Raspberry Pi).
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+      # מאפשר לבנות image אחד לשני סוגי מעבדים
+      # (amd64 = רוב המחשבים, arm64 = Apple Silicon, Windows ARM, Raspberry Pi).
+      - name: Set up QEMU                                     # מכין אמולטור למעבדים אחרים
+        uses: docker/setup-qemu-action@v4                     # מאפשר לבנות ל-arm64 על מכונת amd64
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+      - name: Set up Docker Buildx                            # מכין את כלי הבנייה המתקדם של Docker
+        uses: docker/setup-buildx-action@v4                   # Buildx: תומך בבנייה לכמה פלטפורמות
 
-      # 1. Secure login with the automatic GITHUB_TOKEN (no password stored by us)
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      # 1. התחברות מאובטחת עם GITHUB_TOKEN האוטומטי (אין סיסמה שמורה אצלנו)
+      - name: Log in to ghcr.io                               # התחברות ל-GHCR
+        uses: docker/login-action@v4                          # פעולה מוכנה שמתחברת ל-registry
+        with:                                                 # הפרמטרים של הפעולה
+          registry: ghcr.io                                   # הכתובת של GHCR
+          username: ${{ github.actor }}                       # שם המשתמש שדחף את הקוד
+          password: ${{ secrets.GITHUB_TOKEN }}               # ה-token האוטומטי של GitHub. אין סיסמה אמיתית
 
-      # Image names on ghcr.io must be lowercase, repository names may not be
-      - name: Compute image name
-        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.service }}" >> "$GITHUB_ENV"
+      # שמות image ב-ghcr.io חייבים להיות באותיות קטנות, שמות ריפו לא בהכרח
+      - name: Compute image name                              # שם התמונה
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}-${{ matrix.service }}" >> "$GITHUB_ENV"  # בונה את שם התמונה באותיות קטנות (,,) ושומר אותו במשתנה IMAGE
 
-      # 2. Automatic tagging (version number)
-      #    git tag v1.2.3  ->  :1.2.3  and  :1.2
-      #    every push      ->  :sha-abc1234 and :build-<run number>
-      #    push to main    ->  :latest
-      - name: Generate tags
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.IMAGE }}
-          tags: |
+      # 2. תיוג אוטומטי (מספר גרסה)
+      #    git tag v1.2.3  ->  :1.2.3  ו-:1.2
+      #    כל push        ->  :sha-abc1234 ו-:build-<מספר ריצה>
+      #    push ל-main    ->  :latest
+      - name: Generate tags                                   # מחשב את התגיות של התמונה
+        id: meta                                              # שם פנימי, כדי להשתמש בתוצאות הצעד הזה בהמשך
+        uses: docker/metadata-action@v6                       # פעולה שמחשבת אוטומטית את רשימת התגיות
+        with:                                                 # הפרמטרים
+          images: ${{ env.IMAGE }}                            # שם התמונה שחושב קודם
+          tags: |                                             # כללי התיוג (השורות למטה): גרסה, major.minor, sha, מספר ריצה, ו-latest עבור main
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
             type=raw,value=build-${{ github.run_number }}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      # 3. Build and push (both CPU types, with a build cache to make the next run faster)
-      - name: Build and push ${{ matrix.service }}
-        uses: docker/build-push-action@v7
-        with:
-          context: ./${{ matrix.service }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      # 3. בנייה ודחיפה (לשני סוגי המעבדים, עם cache כדי שהריצה הבאה תהיה מהירה)
+      - name: Build and push ${{ matrix.service }}            # בונה ודוחף את התמונה
+        uses: docker/build-push-action@v7                     # בונה את התמונה ודוחף אותה ל-registry
+        with:                                                 # הפרמטרים
+          context: ./${{ matrix.service }}                    # התיקייה עם ה-Dockerfile: web או api
+          platforms: linux/amd64,linux/arm64                  # בונה לשני סוגי מעבדים
+          push: true                                          # דוחף ל-registry (ולא רק בונה)
+          tags: ${{ steps.meta.outputs.tags }}                # התגיות שחושבו בצעד meta
+          labels: ${{ steps.meta.outputs.labels }}            # מידע נוסף על התמונה (מטא-דאטה)
+          cache-from: type=gha,scope=${{ matrix.service }}    # משתמש ב-cache של GitHub מריצות קודמות
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}  # שומר cache לריצות הבאות

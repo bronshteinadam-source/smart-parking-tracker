@@ -1,11 +1,12 @@
-# Web server: Nginx. It serves the dashboard and the car photos and forwards /api/ requests to the API.
+# שרת האתר: Nginx. מגיש את הדאשבורד ואת תמונות הרכבים, ומעביר בקשות /api/ ל-API.
 FROM nginx:1.27-alpine
 
-# Replace the default site with ours
+# מחליפים את אתר ברירת המחדל בהגדרות שלנו
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# The dashboard (HTML + CSS + JavaScript)
+# הדאשבורד (HTML + CSS + JavaScript)
 COPY html/ /usr/share/nginx/html/
 
+# תיעוד: Nginx מקשיב לפורט 80. החשיפה ל-8080 נעשית ב-docker-compose.yml
 EXPOSE 80
-# The base image already starts Nginx (CMD ["nginx", "-g", "daemon off;"])
+# תמונת הבסיס כבר מפעילה את Nginx בעצמה (CMD ["nginx", "-g", "daemon off;"])
