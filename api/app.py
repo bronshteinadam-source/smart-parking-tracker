@@ -10,6 +10,7 @@ GET    /api/health        לבדיקת התקינות של Docker
   parking:total    int    כמה רכבים נכנסו מאז ההתחלה
   parking:seeded   flag   4 רכבי ההתחלה כבר נוספו פעם אחת
 """
+# ייבוא הספריות שהקוד צריך
 import os                                                     # גישה למשתני סביבה (כמו REDIS_HOST)
 import re                                                     # ביטויים רגולריים (לבדיקת לוחית)
 import time                                                   # שעה נוכחית
@@ -17,6 +18,7 @@ import time                                                   # שעה נוכח�
 import redis                                                  # הלקוח שמדבר עם Redis
 from flask import Flask, jsonify, request                     # Flask: הספרייה שבונה את ה-API
 
+# הגדרות: מספר המקומות, כלל ללוחית תקינה, שמות המפתחות ב-Redis ו-4 רכבי ההתחלה
 CAPACITY = 6                                                  # מספר המקומות בחניון
 PLATE_RE = re.compile(r"^[A-Z0-9-]{2,12}$")                   # לוחית תקינה: אותיות גדולות באנגלית, ספרות ומקף, באורך 2 עד 12
 CARS = "parking:cars"                                         # מפתח ב-Redis (hash): לוחית ← שעת כניסה. מי בחניון עכשיו
@@ -25,6 +27,7 @@ SEEDED = "parking:seeded"                                     # מפתח ב-Redi
 # לוחית -> לפני כמה דקות נכנס
 STARTERS = {"BELAIR-55": 95, "T-BIRD-58": 50, "WOODY-48": 25, "MODEL-T-1": 8}  # 4 רכבי ההתחלה, ולפני כמה דקות כל אחד נכנס
 
+# יצירת אפליקציית ה-API והחיבור ל-Redis
 app = Flask(__name__)                                         # יוצר את אפליקציית ה-API
 db = redis.Redis(                                             # החיבור ל-Redis
     host=os.environ.get("REDIS_HOST", "redis"),               # הכתובת: מגיעה מ-REDIS_HOST ב-Compose (ברירת מחדל redis)
@@ -46,6 +49,7 @@ return 1
 """)
 
 
+# הוספת 4 רכבי ההתחלה, פעם אחת בלבד
 def seed_once():                                              # מוסיף את רכבי ההתחלה, רק בפעם הראשונה
     """מוסיף את רכבי ההתחלה רק בפעם הראשונה (הדגל נשמר גם הוא ב-Redis)."""
     if db.set(SEEDED, "1", nx=True):                          # מנסה לסמן את הדגל. nx=True: רק אם לא קיים, לכן מצליח רק בפעם הראשונה
@@ -57,6 +61,7 @@ def seed_once():                                              # מוסיף את 
         pipe.execute()                                        # שולח הכל ל-Redis
 
 
+# בניית נתוני החניון לדאשבורד, ממוינים מהחדש לישן
 def snapshot():                                               # בונה את התשובה (JSON) שהדאשבורד מקבל
     cars = [                                                  # רשימת הרכבים
         {"plate": p, "arrived_at": int(t)}                    # רכב אחד: לוחית ושעת כניסה
@@ -71,6 +76,7 @@ def snapshot():                                               # בונה את ה
     }
 
 
+# בדיקת תקינות: האם ה-API וה-Redis עובדים (Docker קורא לזה)
 @app.get("/api/health")                                       # נקודת קצה לבדיקת תקינות. Docker קורא לה ב-healthcheck
 def health():                                                 # הפונקציה שרצה
     try:                                                      # מנסה...
@@ -81,6 +87,7 @@ def health():                                                 # הפונקציה
     return jsonify(status="ok")                               # הכל תקין (200)
 
 
+# הצגת כל הרכבים שנמצאים בחניון
 @app.get("/api/cars")                                         # הדאשבורד שואל: מי בחניון?
 def list_cars():                                              # הפונקציה שרצה
     try:
@@ -90,6 +97,7 @@ def list_cars():                                              # הפונקציה
         return jsonify(error="database unavailable"), 503     # ...מחזיר 503
 
 
+# קליטת רכב חדש לחניון: בודק לוחית, כניסה כפולה וחניון מלא
 @app.post("/api/cars")                                        # המצלמה מדווחת על רכב שנכנס
 def add_car():                                                # הפונקציה שרצה
     body = request.get_json(silent=True) or {}                # קורא את גוף ה-JSON (אם הוא לא תקין, מקבל אובייקט ריק)
@@ -108,6 +116,7 @@ def add_car():                                                # הפונקציה
         return jsonify(error="database unavailable"), 503     # ...503
 
 
+# הוצאת רכב מהחניון
 @app.delete("/api/cars/<plate>")                              # שחרור רכב
 def release_car(plate):                                       # הפונקציה שרצה
     plate = plate.upper()                                     # הופך לאותיות גדולות
